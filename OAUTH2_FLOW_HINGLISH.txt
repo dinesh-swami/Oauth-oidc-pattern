@@ -1,0 +1,181 @@
+OAuth2 Express + Mongoose + Docker MongoDB Flow
+================================================
+
+Ye project scratch se banaya gaya hai. Isme Express API server hai, MongoDB local Docker container me run hota hai, aur Mongoose se database connection hota hai.
+
+1. Local Setup Flow
+-------------------
+1. Dependencies install karo:
+   npm install
+
+2. Environment file banao:
+   .env.example ko copy karke .env banao.
+
+3. MongoDB Docker se start karo:
+   docker compose up -d
+
+4. OAuth client seed karo:
+   npm run seed
+
+   Seed ke baad ye client details milengi:
+   client_id: local-client
+   client_secret: local-secret
+   redirect_uri: http://localhost:3000/callback
+
+5. Server start karo:
+   npm run dev
+   ya
+   npm start
+
+   Server URL: http://localhost:4000
+
+2. Folder Structure Explanation
+-------------------------------
+package.json
+  Project scripts aur dependencies define karta hai.
+  start/dev server run karte hain, seed OAuth client create karta hai.
+
+docker-compose.yml
+  Local MongoDB container define karta hai. MongoDB localhost:27017 par available hota hai.
+
+.env.example
+  Required environment variables ka sample hai. Real local values .env me rakhni chahiye.
+
+src/server.js
+  App start point hai. Pehle MongoDB connect karta hai, phir Express server listen karta hai.
+
+src/app.js
+  Express app setup hai. JSON parser, CORS, cookies, logging aur routes yahin attach hote hain.
+
+src/config/db.js
+  Mongoose connection logic rakhta hai.
+
+src/config/oauth.js
+  Token TTL, cookie name aur JWT secrets ka config central jagah rakhta hai.
+
+src/models/User.js
+  User collection ka schema. name, email aur passwordHash store hota hai.
+
+src/models/Client.js
+  OAuth client schema. clientId, hashed secret, redirectUris aur allowed scopes store hote hain.
+
+src/models/AuthorizationCode.js
+  Authorization code store hota hai. Code short-lived hai aur one-time use hota hai.
+
+src/models/Token.js
+  Access/refresh token hashes store hote hain. Raw tokens database me store nahi hote.
+
+src/controllers/auth.controller.js
+  Register, login, current user aur logout ka business logic.
+
+src/controllers/oauth.controller.js
+  OAuth2 authorize, token exchange, refresh token, introspect aur revoke logic.
+
+src/middleware/session.js
+  Login session check karta hai. Cookie ya x-session-token header se user identify hota hai.
+
+src/middleware/bearer.js
+  Protected API ke liye Bearer access token validate karta hai.
+
+src/routes/*.routes.js
+  Routes ko controllers/middleware ke saath map karte hain.
+
+src/utils/crypto.js
+  Secure random token aur SHA-256 hash helper.
+
+src/utils/tokens.js
+  JWT access token, refresh token aur session token banata/verify karta hai.
+
+src/scripts/seedClient.js
+  Demo OAuth client create/update karta hai.
+
+3. End-to-End OAuth2 Flow
+-------------------------
+Step A: User register
+POST http://localhost:4000/auth/register
+Body:
+{
+  "name": "Demo User",
+  "email": "demo@example.com",
+  "password": "Password@123"
+}
+
+Server password ko bcrypt hash karke User collection me save karta hai.
+
+Step B: User login
+POST http://localhost:4000/auth/login
+Body:
+{
+  "email": "demo@example.com",
+  "password": "Password@123"
+}
+
+Response me sessionToken milega aur browser me HTTP-only cookie set hogi.
+API testing ke liye sessionToken ko x-session-token header me use kar sakte ho.
+
+Step C: Authorization code generate
+GET http://localhost:4000/oauth/authorize?response_type=code&client_id=local-client&redirect_uri=http://localhost:3000/callback&scope=profile email&state=abc123
+Header:
+x-session-token: LOGIN_RESPONSE_SESSION_TOKEN
+
+Server login session validate karta hai, client aur redirect_uri check karta hai, phir authorization code create karta hai.
+JSON response me code aur redirectTo milega.
+
+Step D: Code ko token me exchange karo
+POST http://localhost:4000/oauth/token
+Body:
+{
+  "grant_type": "authorization_code",
+  "code": "AUTHORIZATION_CODE",
+  "redirect_uri": "http://localhost:3000/callback",
+  "client_id": "local-client",
+  "client_secret": "local-secret"
+}
+
+Response me access_token aur refresh_token milega.
+Authorization code one-time use hai, dobara use karne par invalid_grant aayega.
+
+Step E: Protected API call
+GET http://localhost:4000/api/profile
+Header:
+Authorization: Bearer ACCESS_TOKEN
+
+Valid access token hoga to protected profile data return hoga.
+
+Step F: Refresh token se new tokens
+POST http://localhost:4000/oauth/token
+Body:
+{
+  "grant_type": "refresh_token",
+  "refresh_token": "REFRESH_TOKEN",
+  "client_id": "local-client",
+  "client_secret": "local-secret"
+}
+
+Old refresh token revoke ho jata hai aur new token pair issue hota hai.
+
+Step G: Token introspection
+POST http://localhost:4000/oauth/introspect
+Body:
+{
+  "token": "ACCESS_OR_REFRESH_TOKEN",
+  "client_id": "local-client",
+  "client_secret": "local-secret"
+}
+
+Response active true/false batata hai.
+
+Step H: Token revoke
+POST http://localhost:4000/oauth/revoke
+Body:
+{
+  "token": "ACCESS_OR_REFRESH_TOKEN",
+  "client_id": "local-client",
+  "client_secret": "local-secret"
+}
+
+Token revoked mark ho jata hai. Uske baad protected API fail karegi.
+
+4. Important Notes
+------------------
+Ye learning/demo OAuth2 server hai. Production me PKCE, HTTPS-only cookies, stronger consent screen, rate limiting, audit logs, CSRF protection, proper client management UI aur secret rotation add karna chahiye.

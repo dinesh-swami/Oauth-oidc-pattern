@@ -1,0 +1,6 @@
+Oauth 2 implement karo blank folder me and completly scarch se banana start karo..
+you can use express, moongoose and docker as local db...for that connection... and and ek file banao txt jisme complete flow likho kaise wo build kiya
+and pura folder structure explain karna in hinglish kaise work kar raha hai...
+all servie end to end honi chaiye..
+
+and start karke bhi dikhao...
